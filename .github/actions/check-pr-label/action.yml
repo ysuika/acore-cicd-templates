@@ -1,0 +1,29 @@
+name: "Check PR Version Label"
+description: "Ensure exactly one of {major, minor, patch, none} labels exists on PR"
+inputs: {}
+outputs:
+  status:
+    description: "success or failure"
+    value: ${{ steps.count-labels.outputs.status }}
+  label:
+    description: "The found version label (major/minor/patch/none)"
+    value: ${{ steps.count-labels.outputs.label }}
+runs:
+  using: "composite"
+  steps:
+    - name: Get PR Labels and Count Version Labels
+      id: count-labels
+      shell: bash
+      run: |
+        VALID_LABELS=$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH" | grep -E '^(major|minor|patch|none)$' || true)
+        LABEL_COUNT=$(echo "$VALID_LABELS" | grep -c . || true)
+        echo "Found $LABEL_COUNT version labels ('major', 'minor', 'patch', 'none')."
+        if [ "$LABEL_COUNT" -eq 1 ]; then
+          FOUND_LABEL="$VALID_LABELS"
+          echo "Exactly one version label found: '$FOUND_LABEL'"
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "label=$FOUND_LABEL" >> $GITHUB_OUTPUT
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "label=" >> $GITHUB_OUTPUT
+        fi
