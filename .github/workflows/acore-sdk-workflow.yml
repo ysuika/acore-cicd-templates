@@ -30,7 +30,7 @@ jobs:
 
       - name: Check pull request label
         id: check
-        uses: XX9-YE-SONG/acore-cicd-templates/.github/actions/check-pr-label@main
+        uses: Ysuika/acore-cicd-templates/.github/actions/check-pr-label@main
 
       - name: Fail if incorrect label count
         if: steps.check.outputs.status == 'failure'
@@ -56,7 +56,7 @@ jobs:
 
       - name: Determine version
         id: det
-        uses: XX9-YE-SONG/acore-cicd-templates/.github/actions/determine-version@main
+        uses: Ysuika/acore-cicd-templates/.github/actions/determine-version@main
         with:
           bump-type: ${{ inputs.bump-type }}
 
@@ -335,7 +335,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Tag new version if needed
-        uses: XX9-YE-SONG/acore-cicd-templates/.github/actions/bump-version@main
+        uses: Ysuika/acore-cicd-templates/.github/actions/bump-version@main
         with:
           new_version: ${{ needs.determine-version.outputs.new_version }}
           token: ${{ secrets.GITHUB_TOKEN }}
