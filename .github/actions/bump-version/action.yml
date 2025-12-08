@@ -1,0 +1,34 @@
+name: "Bump Version (Tag and Push)"
+description: "Create and push a git tag when new_version is provided"
+inputs:
+  new_version:
+    description: "Version to tag (e.g., v1.2.3) or 'none'"
+    required: true
+  token:
+    description: "GitHub token with contents:write"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Tag new version if needed
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        echo "NEW_VERSION=${{ inputs.new_version }}"
+        if [ "${{ inputs.new_version }}" = "none" ] || [ -z "${{ inputs.new_version }}" ]; then
+          echo "No new version to tag. Skipping."
+          exit 0
+        fi
+
+        git fetch --tags --force
+        
+        # Avoid failing if tag already exists
+        if git rev-parse -q --verify "refs/tags/${{ inputs.new_version }}" >/dev/null; then
+          echo "Tag ${{ inputs.new_version }} already exists. Skipping push."
+          exit 0
+        fi
+
+        git tag "${{ inputs.new_version }}"
+        git push origin "${{ inputs.new_version }}"
+        echo "Pushed tag ${V} successfully."
