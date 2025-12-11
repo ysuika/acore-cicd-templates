@@ -7,11 +7,8 @@ on:
         description: 'Require the user to select the bump type from the workflow dispatch UI and rerun the workflow if the commit message does not include a PR ID.'
         required: false
         type: string
-      test-image-repo:
-        required: false
-        type: string
       prod-image-repo:
-        required: false
+        required: true
         type: string
       push-image-to-test:
         description: "If the workflow is called by push-image-to-test, value will be set to ture"
@@ -22,6 +19,46 @@ on:
 permissions: {}
 
 jobs:
+  scan-test:
+    name: Build and scan image (for non-main branches)
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      IMAGE_NAME: image-for-scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image with Buildah
+        id: build
+        uses: redhat-actions/buildah-build@v2
+        with:
+          context: .
+          containerfiles: Containerfile
+          image: ${{ env.IMAGE_NAME }}
+          tags: build
+          oci: true
+          
+      - name: Trivy scan 
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE_NAME }}:build
+          format: template
+          template: '@html.tpl'   # HTML report
+          output: trivy-report.html
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+          exit-code: '0'   
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trivy report
+          path: trivy-report.html
+          retention-days: 1
   # Verify that the PR creator has specified a label; fail the job if none is provided.
   check-pr-label:
     name: Check PR label
@@ -68,113 +105,7 @@ jobs:
         with:
           # This is only used when the workflow is triggered via workflow_dispatch, not for push events.
           bump-type: ${{ inputs.bump-type }}
-
-  build-and-scan-test:
-    name: Build and scan image (test)
-    if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: read
-    env:
-      IMAGE_REPO: ${{ inputs.test-image-repo }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Compute full image name (lowercase)
-        id: name
-        run: |
-          IMAGE_NAME=$(echo "${{ env.IMAGE_REPO }}" | tr '[:upper:]' '[:lower:]')
-          echo "image=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
-
-      - name: Build image with Buildah
-        id: build
-        uses: redhat-actions/buildah-build@v2
-        with:
-          context: .
-          containerfiles: Containerfile
-          image: ${{ steps.name.outputs.image }}
-          tags: build
-          oci: true
           
-      - name: Enable podman socket for trivy
-        run: |
-          systemctl --user enable --now podman.socket      
-          systemctl --user status podman.socket
-          wget https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl
-  
-      - name: Trivy scan 
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: image
-          image-ref: ${{ steps.name.outputs.image }}:build
-          format: template
-          template: '@html.tpl'   # HTML report
-          output: trivy-report.html
-          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
-          exit-code: '0'   
-
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Trivy report
-          path: trivy-report.html
-          retention-days: 1
-
-  Build-and-push-test:
-    name: Build and push image (test)
-    if: github.ref != 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.push-image-to-test == true
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      packages: write
-    env:
-      IMAGE_REPO: ${{ inputs.test-image-repo }}
-      REGISTRY: ghcr.io
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Compute full image name (lowercase)
-        id: name
-        run: |
-          IMAGE_NAME=$(echo "${{ env.IMAGE_REPO }}" | tr '[:upper:]' '[:lower:]')
-          echo "image=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
-
-      - name: Generate image tags to push
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.name.outputs.image }}
-          tags: |
-            type=sha
-            type=raw,value=latest
-            type=raw,value=${{ github.ref_name }}-${{ github.run_number }}
-
-      - name: Podman login to GHCR
-        uses: redhat-actions/podman-login@v1
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image with Buildah
-        id: build-image
-        uses: redhat-actions/buildah-build@v2
-        with:
-          context: .
-          containerfiles: ./Containerfile
-          image: ${{ steps.name.outputs.image }}
-          tags: ${{ steps.meta.outputs.tags }}
-          oci: true
-          
-      - name: Push to GitHub Container Repository
-        uses: redhat-actions/push-to-registry@v2
-        with:
-          tags: ${{ steps.meta.outputs.tags }}
-
   build-prod:
     name: Build image (prod)
     needs: [determine-version]

@@ -136,6 +136,8 @@ runs:
         # Set the final output version
         if [ -n "${{ steps.push.outputs.new_version }}" ]; then
           echo "new_version=${{ steps.push.outputs.new_version }}" >> $GITHUB_OUTPUT
+          echo "new_version=${{ steps.push.outputs.new_version }}"
         else
           echo "new_version=${{ steps.dispatch.outputs.new_version }}" >> $GITHUB_OUTPUT
+          echo "new_version=${{ steps.dispatch.outputs.new_version }}" 
         fi
