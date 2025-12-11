@@ -48,7 +48,7 @@ jobs:
           wget https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl    
 
       - name: Trivy scan 
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           skip-setup-trivy: true
           scan-type: image
