@@ -33,9 +33,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build image with Buildah
-        run: |
-          podman build -t ${{ env.IMAGE_NAME }}:build . --systemd=false --cgroup-manager=cgroupfs
-
+        id: build
+        uses: redhat-actions/buildah-build@v2
+        with:
+          context: .
+          containerfiles: Containerfile
+          image: ${{ env.IMAGE_NAME }}
+          tags: build
+          oci: true
 
       - name: Trivy scan 
         run: |
