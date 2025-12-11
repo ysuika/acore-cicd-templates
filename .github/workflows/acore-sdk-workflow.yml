@@ -22,7 +22,7 @@ jobs:
   scan-test:
     name: Build and scan image (for non-main branches)
     if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 60
     permissions:
       contents: read
