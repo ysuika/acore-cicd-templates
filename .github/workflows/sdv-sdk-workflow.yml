@@ -107,7 +107,7 @@ jobs:
         uses: ysuika/acore-cicd-templates/.github/actions/determine-version@main
         with:
           # This is only used when the workflow is triggered via workflow_dispatch, not for push events.
-          bump-type: ${{ inputs.bump-type }
+          bump-type: ${{ inputs.bump-type }}
 
   build-scan-push-prod:
     name: Build image (prod)
