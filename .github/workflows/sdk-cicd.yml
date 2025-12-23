@@ -1,4 +1,7 @@
-name: A-core sdk workflow
+name: sdk cicd
+# This workflow builds, scans, and pushes the SDK image.
+# It automatically generates a semantic version based on the bump type(major,minor,patch or none) provided by user and the latest tag on the main branch.
+# It then tags both the Git commit and the built image with the generated version.
 
 on:
   workflow_call:
@@ -10,15 +13,12 @@ on:
       prod-image-repo:
         required: true
         type: string
-      push-image-to-test:
-        description: "If the workflow is called by push-image-to-test, value will be set to ture"
-        required: false
-        default: false
-        type: boolean      
 
+# Explicitly revokes all default permissions.
 permissions: {}
 
 jobs:
+  # Build the image and scan it using Trivy.
   build-scan-test:
     name: Build and scan image (for non-main branches)
     if: github.ref != 'refs/heads/main'
@@ -63,7 +63,7 @@ jobs:
           path: trivy-report.html
           retention-days: 1
           
-  # Verify that the PR creator has specified a label; fail the job if none is provided.
+  #Verify that the PR creator has specified exactly one version label (major, minor, patch, or none); fail the job if no label is provided.
   check-pr-label:
     name: Check PR label
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
@@ -80,13 +80,15 @@ jobs:
         id: check
         uses: ysuika/acore-cicd-templates/.github/actions/check-pr-label@main
 
-      # Fail the job if the PR label is not properly provided.
       - name: Result
         if: steps.check.outputs.status == 'failure'
         run: |
           echo "Error: Pull request must have exactly one of these labels: major, minor, patch, none. Please recreate PR."
           exit 1
 
+  # Determine the version based on the PR label
+  # Assumes the PR ID is present in the commit message (used to retrieve the PR label).
+  # If the PR ID is not present, instruct the user to rerun the workflow via workflow_dispatch and manually select the version bump type.
   determine-version:
     name: Determine version
     if: github.ref == 'refs/heads/main'
@@ -107,9 +109,10 @@ jobs:
         id: det
         uses: ysuika/acore-cicd-templates/.github/actions/determine-version@main
         with:
-          # This is only used when the workflow is triggered via workflow_dispatch, not for push events.
           bump-type: ${{ inputs.bump-type }}
 
+  # Build, scan and push the image to image repository.
+  # The generated version is both tagged to the image and included in the image label (metadata). 
   build-scan-push-prod:
     name: Build image (prod)
     needs: [determine-version]
@@ -191,6 +194,7 @@ jobs:
           path: trivy-report.html
           retention-days: 1
 
+  # Tag the main branch with the generated version.
   bump-version:
     name: Bump version (git tag)
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
